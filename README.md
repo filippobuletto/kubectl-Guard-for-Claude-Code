@@ -85,14 +85,14 @@ The hook passes the option to the script as an argument, not through the environ
 ## Install
 
 ```text
-/plugin marketplace add filippobuletto/kubectl-Guard-for-Claude-Code
-/plugin install kubectl-guard@kubectl-guard
+/plugin marketplace add filippobuletto/claude-plugins
+/plugin install kubectl-guard@filippobuletto
 ```
 
 On Claude Code 2.1.275 or later, one step works too:
 
 ```text
-/plugin install kubectl-guard --marketplace filippobuletto/kubectl-Guard-for-Claude-Code
+/plugin install kubectl-guard --marketplace filippobuletto/claude-plugins
 ```
 
 Then pick the mode in `/config` (`ask` for interactive use, `deny` for unattended runs) and restart Claude Code so the hook is picked up.
@@ -145,7 +145,7 @@ Then start Claude Code and ask it to run `kubectl delete pod something` to confi
 
 ## Customizing
 
-Fork the repository, edit the variables at the top of `scripts/block-kubectl.sh`, and install your fork as a marketplace (`/plugin marketplace add <your-user>/<your-fork>` or a local path):
+Fork the repository, edit the variables at the top of `scripts/block-kubectl.sh`, and load your clone with `claude --plugin-dir /path/to/your-fork`:
 
 - `ALLOWED_KUBECTL_VERBS`: add or remove read-only verbs (for example, remove `logs`).
 - `ALLOWED_HELM_VERBS`: same for helm.
