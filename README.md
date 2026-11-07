@@ -1,6 +1,25 @@
+<div align="center">
+
 # kubectl Guard for Claude Code
 
-A `PreToolUse` hook for [Claude Code](https://claude.com/claude-code) that restricts what an AI agent can do with `kubectl` and `helm` through the Bash tool. It uses an **allowlist**: only known read-only operations run freely, everything else is either blocked or sent to you for confirmation.
+A Claude Code plugin that restricts what an AI agent can do with `kubectl` and `helm` through the Bash tool. It uses an **allowlist**: only known read-only operations run freely, everything else is either blocked or sent to you for confirmation.
+
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Ffilippobuletto%2Fkubectl-Guard-for-Claude-Code%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&label=version)](.claude-plugin/plugin.json)
+[![License](https://img.shields.io/github/license/filippobuletto/kubectl-Guard-for-Claude-Code)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/filippobuletto/kubectl-Guard-for-Claude-Code)](https://github.com/filippobuletto/kubectl-Guard-for-Claude-Code/commits/main)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=claude&logoColor=white)](https://code.claude.com/docs/en/plugins)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-kubectl-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/docs/reference/kubectl/)
+[![Helm](https://img.shields.io/badge/Helm-guarded-0F1689?logo=helm&logoColor=white)](https://helm.sh/)
+[![Bash](https://img.shields.io/badge/shell-Bash-4EAA25?logo=gnu-bash&logoColor=white)](scripts/block-kubectl.sh)
+[![jq](https://img.shields.io/badge/requires-jq-blue)](https://jqlang.org/)
+
+</div>
+
+```text
+$ kubectl get pods -n prod             allowed
+$ kubectl -n prod delete pod web-0     ask: kubectl verb 'delete' is not on the allowlist
+$ kubectl get secret db -o yaml        BLOCKED: reads secrets
+```
 
 ## Goal
 
@@ -10,7 +29,7 @@ This hook is a **convenience guard, not a security boundary**. It inspects the c
 
 ## How it works
 
-Claude Code runs the script before every Bash tool call and passes the call as JSON on stdin. The script extracts `.tool_input.command` with `jq` and decides:
+A `PreToolUse` hook matches the `Bash` tool and runs `scripts/block-kubectl.sh` before every call, passing the call as JSON on stdin. The script extracts `.tool_input.command` with `jq` and decides:
 
 | Outcome | Mechanism | Effect |
 |---|---|---|
@@ -48,89 +67,59 @@ Everything else (`delete`, `exec`, `scale`, `patch`, `create`, `run`, `drain`, `
 
 ### Deny mode vs. ask mode
 
-A single hardcoded constant at the top of the script controls how verb violations are handled:
-
-```bash
-readonly VERB_VIOLATION_MODE="ask"   # or "deny"
-```
+The `verb_violation_mode` plugin option controls how verb violations are handled. Set it in `/config` or `/plugin`:
 
 - `"deny"`: verb violations are blocked outright (exit 2).
 - `"ask"`: verb violations show a confirmation prompt, so you can approve a one-off action such as a `kubectl rollout restart`.
 
 **Hard rules always deny, in both modes:** denied flags, reading secrets, shell indirection, environment overrides, direct API access and blocked binaries. A quick "yes" on those would defeat the guard.
 
-The variable is intentionally not read from the environment, so the agent can't flip it with `VERB_VIOLATION_MODE=ask kubectl ...`.
+The hook passes the option to the script as an argument, not through the environment, so the agent can't flip it with `VERB_VIOLATION_MODE=ask kubectl ...`. Any value other than `ask` fails closed to `deny`.
 
 ## Requirements
 
 - macOS (works with the default bash 3.2 and BSD `grep`/`sed`) or Linux
 - [`jq`](https://jqlang.org/): `brew install jq`
-- Claude Code
+- Claude Code v2.1.271 or later (for the option picker)
 
-## Installation
+## Install
 
-1. **Save the script** outside any project the agent can write to, for example:
+```text
+/plugin marketplace add filippobuletto/kubectl-Guard-for-Claude-Code
+/plugin install kubectl-guard@kubectl-guard
+```
 
-   ```bash
-   mkdir -p ~/.claude/hooks
-   # copy the script contents into this file:
-   $EDITOR ~/.claude/hooks/block-kubectl.sh
-   ```
+On Claude Code 2.1.275 or later, one step works too:
 
-2. **Make it executable and protect it from edits:**
+```text
+/plugin install kubectl-guard --marketplace filippobuletto/kubectl-Guard-for-Claude-Code
+```
 
-   ```bash
-   chmod 755 ~/.claude/hooks/block-kubectl.sh
-   # Optional, stronger: read-only so it can't be modified casually
-   chmod 555 ~/.claude/hooks/block-kubectl.sh
-   ```
+Then pick the mode in `/config` (`ask` for interactive use, `deny` for unattended runs) and restart Claude Code so the hook is picked up.
 
-3. **Choose the mode:** edit the `readonly VERB_VIOLATION_MODE=` line (`"ask"` for interactive use, `"deny"` for unattended runs).
+## Options
 
-4. **Register the hook** in `~/.claude/settings.json` (all projects) or `.claude/settings.json` (one project):
-
-   ```json
-   {
-     "hooks": {
-       "PreToolUse": [
-         {
-           "matcher": "Bash",
-           "hooks": [
-             { "type": "command", "command": "/Users/YOUR_USER/.claude/hooks/block-kubectl.sh" }
-           ]
-         }
-       ]
-     }
-   }
-   ```
-
-   Use an absolute path. If you already have other `PreToolUse` entries, add this one to the array.
-
-5. **Restart Claude Code** (or reload settings) so the hook is picked up.
+| Option | Default | Meaning |
+| :- | :- | :- |
+| `verb_violation_mode` | `ask` | `ask` shows a confirmation prompt for commands outside the allowlist, `deny` blocks them. Hard rules always deny |
 
 ## Testing
 
-Run these from the directory containing the script:
+Run the test suite from the repository root:
 
 ```bash
-t() { echo "{\"tool_input\":{\"command\":\"$1\"}}" | ./block-kubectl.sh; echo "exit=$?  <- $1"; }
+bash tests/run.sh
+```
+
+To try a single command by hand (the argument is the mode):
+
+```bash
+t() { jq -nc --arg c "$1" '{tool_input:{command:$c}}' | bash scripts/block-kubectl.sh "${2:-ask}"; echo "exit=$?  <- $1"; }
 
 t 'kubectl get pods -n prod'                      # allowed: no output, exit 0
-t 'kubectl logs web-0 -n prod --tail=100'         # allowed
-t 'kubectl -n prod rollout status deploy/web'     # allowed
-t 'kubectl config view'                           # allowed
-t 'kubectl apply -f x.yaml --dry-run=server'      # allowed
-t 'ls -la'                                        # allowed (not k8s related)
-
-t 'kubectl -n prod delete pod x'                  # ask mode: JSON + exit 0 / deny mode: exit 2
-t 'kubectl rollout restart deploy/web'            # ask mode: JSON + exit 0 / deny mode: exit 2
-t 'helm upgrade foo ./chart'                      # ask mode: JSON + exit 0 / deny mode: exit 2
-
-t 'kubectl get secret db -o yaml'                 # BLOCKED, exit 2
-t 'kubectl get pods --as admin'                   # BLOCKED, exit 2
-t 'kubectl config view --raw'                     # BLOCKED, exit 2
-t 'kubectl delete pod x && kubectl get secret y'  # BLOCKED, exit 2 (hard deny wins over ask)
-t 'kubectl get pods -n $NS'                       # BLOCKED, exit 2 (shell variable)
+t 'kubectl -n prod delete pod x'                  # ask: JSON + exit 0
+t 'kubectl -n prod delete pod x' deny             # BLOCKED, exit 2
+t 'kubectl get secret db -o yaml'                 # BLOCKED, exit 2 (hard rule)
 ```
 
 Then start Claude Code and ask it to run `kubectl delete pod something` to confirm you see the prompt (ask mode) or the block message (deny mode).
@@ -151,12 +140,12 @@ Then start Claude Code and ask it to run `kubectl delete pod something` to confi
 - **`diff` and `--dry-run=server`** send manifests to the API server (read-only, but they do contact it).
 - **Ask mode needs a human.** In non-interactive runs (`claude -p`, CI), there is no one to answer the prompt. Use `"deny"` there.
 - **Check your permission rules.** Broad allow rules such as `Bash(kubectl:*)` in your Claude Code settings may bypass the prompt. Test that the prompt still appears and narrow those rules if it doesn't.
-- **Tamper resistance:** keep the script outside the agent's writable paths and make it read-only (or owned by another user). Otherwise the agent could edit the script or the hook configuration.
+- **Tamper resistance:** the plugin lives in Claude Code's plugin cache under `~/.claude/plugins`, and the mode is stored in `settings.json`. An agent that can write there could edit the script, the option or the hook configuration. Deny writes to those paths in your permission rules, or run the agent in a sandbox.
 - **Platform notes:** tested against macOS-compatible tools (`[[:space:]]` instead of `\b`, no bash 4 features). `kubectl.exe` and `kubecolor` are recognized; other wrappers are not.
 
 ## Customizing
 
-All in the variables at the top of the script:
+Fork the repository, edit the variables at the top of `scripts/block-kubectl.sh`, and install your fork as a marketplace (`/plugin marketplace add <your-user>/<your-fork>` or a local path):
 
 - `ALLOWED_KUBECTL_VERBS`: add or remove read-only verbs (for example, remove `logs`).
 - `ALLOWED_HELM_VERBS`: same for helm.
@@ -167,7 +156,7 @@ All in the variables at the top of the script:
 
 ## Troubleshooting
 
-- **Nothing is blocked:** check the hook path is absolute and executable, the `matcher` is `"Bash"`, and Claude Code was restarted.
+- **Nothing is blocked:** check the plugin is enabled in `/plugin`, the hook is listed in `/hooks`, and Claude Code was restarted.
 - **`jq: command not found`:** `brew install jq`.
-- **Hook errors on every command:** run the test snippet manually and check stderr for syntax errors.
+- **Hook errors on every command:** run `bash tests/run.sh` and check stderr for syntax errors.
 - **Prompt never appears in ask mode:** check for broad `allow` rules in your Claude Code permissions.
