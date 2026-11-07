@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/block-kubectl.sh", "${user_config.verb_violation_mode}"],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

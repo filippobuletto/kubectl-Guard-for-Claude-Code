@@ -1,11 +1,15 @@
 #!/bin/bash
 
-# --- Mode switch (edit this line) ---------------------------------------------
+# --- Mode switch (first argument) ---------------------------------------------
 # "deny": block non-allowlisted verbs outright (exit 2)
-# "ask":  show a confirmation prompt for non-allowlisted verbs
-# Hardcoded and readonly on purpose: it is not read from the environment,
+# "ask":  show a confirmation prompt for non-allowlisted verbs (default)
+# Any other value fails closed to "deny".
+# Passed as an argument by hooks/hooks.json, not read from the environment,
 # so the agent can't change it with `VERB_VIOLATION_MODE=ask kubectl ...`.
-readonly VERB_VIOLATION_MODE="ask"
+case "${1:-ask}" in
+  ask) readonly VERB_VIOLATION_MODE="ask" ;;
+  *)   readonly VERB_VIOLATION_MODE="deny" ;;
+esac
 
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command')

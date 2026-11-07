@@ -1,0 +1,19 @@
+{
+  "name": "kubectl-guard",
+  "version": "1.0.0",
+  "description": "Allowlist PreToolUse hook that lets Claude inspect Kubernetes clusters with kubectl and helm without changing them, reading secrets or switching identity",
+  "author": { "name": "Filippo Buletto", "url": "https://github.com/filippobuletto" },
+  "homepage": "https://github.com/filippobuletto/kubectl-Guard-for-Claude-Code",
+  "repository": "https://github.com/filippobuletto/kubectl-Guard-for-Claude-Code",
+  "license": "MIT",
+  "keywords": ["kubectl", "helm", "kubernetes", "hooks", "security", "guard"],
+  "userConfig": {
+    "verb_violation_mode": {
+      "type": "string",
+      "title": "Verb violation mode",
+      "description": "ask: confirm commands outside the allowlist. deny: block them outright (use for unattended runs). Hard rules always deny",
+      "options": ["ask", "deny"],
+      "default": "ask"
+    }
+  }
+}
