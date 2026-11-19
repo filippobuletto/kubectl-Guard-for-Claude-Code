@@ -1,6 +1,6 @@
 {
   "name": "kubectl-guard",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Allowlist PreToolUse hook that lets Claude inspect Kubernetes clusters with kubectl and helm without changing them, reading secrets or switching identity",
   "author": { "name": "Filippo Buletto", "url": "https://github.com/filippobuletto" },
   "homepage": "https://github.com/filippobuletto/kubectl-Guard-for-Claude-Code",
