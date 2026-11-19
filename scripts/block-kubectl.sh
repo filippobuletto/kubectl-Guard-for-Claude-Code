@@ -26,7 +26,7 @@ ASK_REASONS=""
 
 # Hard block: always exits 2
 deny() {
-  echo "BLOCKED: '$COMMAND' $1. The user has prevented you from doing this." >&2
+  echo "BLOCKED: '$COMMAND' $1. Permission for this action was denied by the user. If you have other tasks that don't depend on this action, continue working on those. IMPORTANT: You *may* attempt to accomplish this action using other tools that might naturally be used to accomplish this goal, e.g. using head instead of cat. But you *should not* attempt to work around this denial in malicious ways, e.g. do not use your ability to run tests to execute non-test actions. You should only try to work around this restriction in reasonable ways that do not attempt to bypass the intent behind this denial. If you believe this capability is essential to complete the user's request, first try a safer method. Get as much of the rest of the task done as you can, then STOP and explain to the user what you were trying to do and why you need this permission. Let the user decide how to proceed. To allow this type of action in the future, the user can add a permission rule their settings." >&2
   exit 2
 }
 
